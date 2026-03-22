@@ -10,3 +10,7 @@ Run with `docker compose up --build`
 ## Mock Data
 
 Requires `influxdb_client`, run `streaming.py` to stream data to the influx container.
+
+## Planning
+
+Package entire repo as docker container. Refer to the [helios livestream repo](https://github.com/helios-data/helios-livestreaming/blob/jason/docker-testing/Dockerfile)
