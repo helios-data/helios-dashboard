@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - uid: influxdb-uid
+    name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: rocket
+      defaultBucket: mock_data
+    secureJsonData:
+      token: my-super-token
+    isDefault: true
