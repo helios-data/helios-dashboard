@@ -5,16 +5,24 @@ echo "Starting InfluxDB..."
 influxd &
 
 # wait for influx to start
-sleep 5
+until curl -s http://localhost:8086/health > /dev/null; do
+  echo "Waiting for InfluxDB..."
+  sleep 2
+done
 
-echo "Setting up InfluxDB..."
-influx setup \
-  --username $DOCKER_INFLUXDB_INIT_USERNAME \
-  --password $DOCKER_INFLUXDB_INIT_PASSWORD \
-  --org $DOCKER_INFLUXDB_INIT_ORG \
-  --bucket $DOCKER_INFLUXDB_INIT_BUCKET \
-  --token $DOCKER_INFLUXDB_INIT_ADMIN_TOKEN \
-  --force
+# Only run setup if DB not initialized
+if [ ! -f /root/.influxdbv2/influxd.bolt ]; then
+  echo "Setting up InfluxDB..."
+  influx setup \
+    --username $DOCKER_INFLUXDB_INIT_USERNAME \
+    --password $DOCKER_INFLUXDB_INIT_PASSWORD \
+    --org $DOCKER_INFLUXDB_INIT_ORG \
+    --bucket $DOCKER_INFLUXDB_INIT_BUCKET \
+    --token $DOCKER_INFLUXDB_INIT_ADMIN_TOKEN \
+    --force
+else
+  echo "InfluxDB already initialized, skipping setup"
+fi
 
 echo "Starting Grafana..."
 grafana server \
