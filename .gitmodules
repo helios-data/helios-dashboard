@@ -1,0 +1,6 @@
+[submodule "falcon-protos"]
+	path = falcon-protos
+	url = git@github.com:UBC-Rocket/falcon-protos.git
+[submodule "helios-python-sdk"]
+	path = helios-python-sdk
+	url = git@github.com:helios-data/helios-python-sdk.git
