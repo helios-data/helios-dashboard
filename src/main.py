@@ -1,9 +1,9 @@
 import asyncio
-import time
 import logging
+from datetime import datetime
 
 from helios import HeliosClient
-from influxdb_client import InfluxDBClient
+from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 from generated import TelemetryPacket, FlightState
 
@@ -31,28 +31,58 @@ def flight_state_name(state: int) -> str:
     return state_names.get(state, f"UNKNOWN_{state}")
 
 
-def write_to_influxdb(client, measurement: str, fields: dict, tags: dict = None):
-    """Write data point to InfluxDB."""
+def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
+    """Write TelemetryPacket data to InfluxDB using Point API."""
     try:
-        write_api = client.write_api(write_options=SYNCHRONOUS)
-        
-        # Build the line protocol
-        tag_str = ""
-        if tags:
-            tag_str = "," + ",".join(f"{k}={v}" for k, v in tags.items())
-        
-        field_str = ",".join(f'{k}={v}' for k, v in fields.items())
-        line = f"{measurement}{tag_str} {field_str} {int(time.time() * 1e9)}"
-        
-        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=line)
-        logger.debug(f"Wrote to InfluxDB: {line}")
+        # Create Point object with telemetry measurement
+        point = (
+            Point("telemetry")
+            .tag("flight_state", flight_state_name(telemetry.state))
+            .tag("source", "Helios.FALCON.Telemetry")
+            # Packet metadata
+            .field("counter", telemetry.counter)
+            .field("timestamp_ms", telemetry.timestamp_ms)
+            .field("state", int(telemetry.state))
+            # IMU data
+            .field("accel_x", telemetry.accel_x)
+            .field("accel_y", telemetry.accel_y)
+            .field("accel_z", telemetry.accel_z)
+            .field("gyro_x", telemetry.gyro_x)
+            .field("gyro_y", telemetry.gyro_y)
+            .field("gyro_z", telemetry.gyro_z)
+            # Kalman filter estimates
+            .field("kf_altitude", telemetry.kf_altitude)
+            .field("kf_velocity", telemetry.kf_velocity)
+            .field("kf_alt_variance", telemetry.kf_alt_variance)
+            .field("kf_vel_variance", telemetry.kf_vel_variance)
+            # Barometer 0 data
+            .field("baro0_healthy", int(telemetry.baro0_healthy))
+            .field("baro0_pressure", telemetry.baro0_pressure)
+            .field("baro0_temperature", telemetry.baro0_temperature)
+            .field("baro0_altitude", telemetry.baro0_altitude)
+            .field("baro0_nis", telemetry.baro0_nis)
+            .field("baro0_faults", telemetry.baro0_faults)
+            # Barometer 1 data
+            .field("baro1_healthy", int(telemetry.baro1_healthy))
+            .field("baro1_pressure", telemetry.baro1_pressure)
+            .field("baro1_temperature", telemetry.baro1_temperature)
+            .field("baro1_altitude", telemetry.baro1_altitude)
+            .field("baro1_nis", telemetry.baro1_nis)
+            .field("baro1_faults", telemetry.baro1_faults)
+            .time(datetime.utcnow(), WritePrecision.NS)
+        )
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+        logger.debug(f"Telemetry point written: counter={telemetry.counter}")
+
     except Exception as e:
-        logger.error(f"Failed to write to InfluxDB: {e}")
+        logger.error(f"Failed to write telemetry to InfluxDB: {e}", exc_info=True)
 
 
 async def main() -> None:
     # Initialize InfluxDB client
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+    write_api = influx_client.write_api(write_options=SYNCHRONOUS)
     
     # Initialize Helios client
     helios_client = HeliosClient(
@@ -71,50 +101,14 @@ async def main() -> None:
         ) as events:
             async for event in events:
                 try:
-                    # Parse incoming data as TelemetryPacket
+                    # Parse incoming data as TelemetryPacket from protobuf schema
                     telemetry = TelemetryPacket().parse(event.data)
                     
-                    # Extract fields for InfluxDB
-                    fields = {
-                        "counter": telemetry.counter,
-                        "timestamp_ms": telemetry.timestamp_ms,
-                        "state": int(telemetry.state),
-                        "accel_x": telemetry.accel_x,
-                        "accel_y": telemetry.accel_y,
-                        "accel_z": telemetry.accel_z,
-                        "gyro_x": telemetry.gyro_x,
-                        "gyro_y": telemetry.gyro_y,
-                        "gyro_z": telemetry.gyro_z,
-                        "kf_altitude": telemetry.kf_altitude,
-                        "kf_velocity": telemetry.kf_velocity,
-                        "kf_alt_variance": telemetry.kf_alt_variance,
-                        "kf_vel_variance": telemetry.kf_vel_variance,
-                        "baro0_pressure": telemetry.baro0_pressure,
-                        "baro0_temperature": telemetry.baro0_temperature,
-                        "baro0_altitude": telemetry.baro0_altitude,
-                        "baro0_nis": telemetry.baro0_nis,
-                        "baro0_faults": telemetry.baro0_faults,
-                        "baro1_pressure": telemetry.baro1_pressure,
-                        "baro1_temperature": telemetry.baro1_temperature,
-                        "baro1_altitude": telemetry.baro1_altitude,
-                        "baro1_nis": telemetry.baro1_nis,
-                        "baro1_faults": telemetry.baro1_faults,
-                    }
-                    
-                    # Add boolean flags as integers (InfluxDB compatible)
-                    fields["baro0_healthy"] = int(telemetry.baro0_healthy)
-                    fields["baro1_healthy"] = int(telemetry.baro1_healthy)
-                    
-                    # Write to InfluxDB with flight state tag
-                    write_to_influxdb(
-                        influx_client,
-                        "telemetry",
-                        fields,
-                        tags={"flight_state": flight_state_name(telemetry.state)}
-                    )
+                    # Write to InfluxDB using Point API
+                    write_telemetry_to_influxdb(write_api, telemetry)
                     
                     logger.info(
-                        f"Telemetry: counter={telemetry.counter}, "
+                        f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
                         f"state={flight_state_name(telemetry.state)}, "
                         f"altitude={telemetry.kf_altitude:.2f}m, "
                         f"velocity={telemetry.kf_velocity:.2f}m/s"
