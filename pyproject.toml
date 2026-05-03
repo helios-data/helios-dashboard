@@ -1,0 +1,15 @@
+[project]
+name = "helios-dashboard"
+version = "0.1.0"
+description = "Helios data injection and dashboard"
+requires-python = ">=3.10"
+dependencies = [
+    "betterproto2-compiler>=0.9.0",
+    "betterproto2[all]>=0.9.1",
+    "websockets>=15.0",
+    "influxdb-client>=1.18.0",
+    "helios-python-sdk",
+]
+
+[tool.uv.sources]
+helios-python-sdk = { path = "helios-python-sdk", editable = true }
