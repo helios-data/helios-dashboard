@@ -34,6 +34,6 @@ grafana server \
   cfg:default.paths.plugins=/var/lib/grafana/plugins &
 
 echo "Starting Python script..."
-python3 /app/main.py
+python3 /app/src/main.py
 
 wait

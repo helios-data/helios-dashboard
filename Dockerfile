@@ -9,7 +9,7 @@ FROM python:3.13-slim AS python-builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-WORKDIR /build
+WORKDIR /app
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,6 +24,7 @@ COPY pyproject.toml uv.lock* ./
 # Copy SDK and build it
 COPY helios-python-sdk/ ./helios-python-sdk/
 COPY falcon-protos/ ./falcon-protos/
+RUN uv sync --frozen --no-install-project
 
 # Copy source
 COPY src/ ./src/
@@ -34,10 +35,10 @@ RUN mkdir -p src/generated && \
     --python_betterproto2_out=src/generated \
     $(find falcon-protos -name "*.proto")
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen
 
 # ---- Final image ----
-FROM ubuntu:22.04
+FROM python:3.13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -59,10 +60,12 @@ COPY --from=grafana /usr/share/grafana/bin/grafana-server /usr/local/bin/grafana
 COPY --from=grafana /usr/share/grafana/bin/grafana /usr/local/bin/grafana
 
 # Copy Python dependencies from builder
-COPY --from=python-builder /build/.venv /app/.venv
+COPY --from=python-builder /app /app
+WORKDIR /app
 
 # Set PATH to include local Python packages
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
 
 # Environment variables (same as docker-compose)
 ENV DOCKER_INFLUXDB_INIT_MODE=setup
@@ -79,10 +82,6 @@ ENV GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1s
 # Grafana provisioning
 COPY grafana/provisioning /etc/grafana/provisioning
 COPY grafana/dashboards /var/lib/grafana/dashboards
-
-# Python script and SDK
-COPY src/main.py /app/main.py
-COPY helios-python-sdk/ /app/helios-python-sdk/
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh
