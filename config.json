@@ -1,0 +1,10 @@
+{
+  "ports": [],
+  "volumes": [
+    {
+      "type": "folder",
+      "name": "/root/.influxdbv2",
+      "source": "/home/rocket/helios-launcher/src/tmp/influx2"
+    }
+  ]
+}
