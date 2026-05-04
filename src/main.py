@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import sys
 from datetime import datetime
 
 from helios import HeliosClient
@@ -12,10 +14,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # InfluxDB configuration
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "my-super-token"
-INFLUX_ORG = "rocket"
-INFLUX_BUCKET = "mock_data"
+INFLUX_URL = os.getenv("INFLUX_URL", "http://127.0.0.1:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "my-super-token")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "rocket")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "mock_data")
+
+
+def validate_influx_config() -> None:
+    if not INFLUX_TOKEN:
+        logger.error("Missing InfluxDB token. Set INFLUX_TOKEN in the environment.")
+        sys.exit(1)
+    if not INFLUX_ORG:
+        logger.error("Missing InfluxDB org. Set INFLUX_ORG in the environment.")
+        sys.exit(1)
+    if not INFLUX_BUCKET:
+        logger.error("Missing InfluxDB bucket. Set INFLUX_BUCKET in the environment.")
+        sys.exit(1)
 
 
 def flight_state_name(state: int) -> str:
@@ -80,6 +94,15 @@ def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
 
 
 async def main() -> None:
+    validate_influx_config()
+
+    logger.info(
+        "Connecting to InfluxDB with url=%s org=%s bucket=%s",
+        INFLUX_URL,
+        INFLUX_ORG,
+        INFLUX_BUCKET,
+    )
+
     # Initialize InfluxDB client
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
@@ -100,9 +123,23 @@ async def main() -> None:
             event_name="telemetry",
         ) as events:
             async for event in events:
+                if not event.data or len(event.data) < 15: # Increased threshold
+                    continue
                 try:
+                    
                     # Parse incoming data as TelemetryPacket from protobuf schema
                     telemetry = TelemetryPacket().parse(event.data)
+
+                    packet_dict = telemetry.to_dict()
+                    print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
+                    for field, value in packet_dict.items():
+                        print(f"{field}: {value} ({type(value).__name__})")
+                    print("-------------------------------------------\n")
+
+                    # If parsing goes sideways and creates a list, skip this packet
+                    if isinstance(telemetry.gyro_y, list):
+                        logger.warning(f"Corrupted packet (Field is list): counter={getattr(telemetry, 'counter', 'unknown')}")
+                        continue
                     
                     # Write to InfluxDB using Point API
                     write_telemetry_to_influxdb(write_api, telemetry)
@@ -114,6 +151,8 @@ async def main() -> None:
                         f"velocity={telemetry.kf_velocity:.2f}m/s"
                     )
                     
+                except EOFError as e:
+                    logger.error(f"Skipping malformed packet: {e}")
                 except Exception as e:
                     logger.error(f"Error processing event: {e}", exc_info=True)
 
