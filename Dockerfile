@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     protobuf-compiler \
     libprotobuf-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*  
 
 COPY pyproject.toml uv.lock* ./
 
@@ -74,6 +74,12 @@ ENV DOCKER_INFLUXDB_INIT_PASSWORD=admin123
 ENV DOCKER_INFLUXDB_INIT_ORG=rocket
 ENV DOCKER_INFLUXDB_INIT_BUCKET=mock_data
 ENV DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-token
+
+# These must match the DOCKER_INFLUXDB_INIT_* values for proper authentication
+ENV INFLUX_URL=http://localhost:8086
+ENV INFLUX_TOKEN=my-super-token
+ENV INFLUX_ORG=rocket
+ENV INFLUX_BUCKET=mock_data
 
 ENV GF_SECURITY_ADMIN_USER=admin
 ENV GF_SECURITY_ADMIN_PASSWORD=admin
