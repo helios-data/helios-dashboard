@@ -12,6 +12,20 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "builtIn": 0,
+        "datasource": {
+          "type": "influxdb",
+          "uid": "influxdb-uid"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "name": "Flight State Transitions",
+        "rawQuery": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\" and r._field == \"state\")\n  |> drop(columns: [\"source\"])\n  |> sort(columns: [\"_time\"])\n  |> difference(nonNegative: false, columns: [\"_value\"])\n  |> filter(fn: (r) => r._value != 0)\n  |> map(fn: (r) => ({_time: r._time, text: r.flight_state}))\n  |> keep(columns: [\"_time\", \"text\"])",
+        "showIn": 0,
+        "type": "query"
       }
     ]
   },
@@ -20,6 +34,72 @@
   "graphTooltip": 0,
   "links": [],
   "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-uid"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 70,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "STANDBY":        {"color": "blue",       "index": 0, "text": "STANDBY"},
+                "ASCENT":         {"color": "green",      "index": 1, "text": "ASCENT"},
+                "MACH_LOCK":      {"color": "yellow",     "index": 2, "text": "MACH LOCK"},
+                "DROGUE_DESCENT": {"color": "orange",     "index": 3, "text": "DROGUE DESCENT"},
+                "MAIN_DESCENT":   {"color": "light-blue", "index": 4, "text": "MAIN DESCENT"},
+                "LANDED":         {"color": "purple",     "index": 5, "text": "LANDED"}
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
+      "id": 6,
+      "options": {
+        "alignValue": "center",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "always",
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "pluginVersion": "11.1.4",
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb-uid"},
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"state\")\n  |> map(fn: (r) => ({_time: r._time, _value: r.flight_state}))\n  |> group(columns: [])",
+          "refId": "A"
+        }
+      ],
+      "title": "Flight State",
+      "type": "state-timeline"
+    },
     {
       "datasource": {
         "type": "influxdb",
@@ -72,7 +152,7 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "lengthm"
         },
         "overrides": []
       },
@@ -80,7 +160,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "id": 1,
       "options": {
@@ -102,7 +182,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"baro0_altitude\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"baro0_altitude\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "A"
         },
         {
@@ -110,7 +190,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"baro1_altitude\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"baro1_altitude\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "B"
         }
       ],
@@ -169,7 +249,7 @@
               }
             ]
           },
-          "unit": "m/s2"
+          "unit": "accMS2"
         },
         "overrides": []
       },
@@ -177,7 +257,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 4
       },
       "id": 2,
       "options": {
@@ -199,7 +279,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_x\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_x\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "A"
         },
         {
@@ -207,7 +287,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_y\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_y\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "B"
         },
         {
@@ -215,7 +295,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_z\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"accel_z\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "C"
         }
       ],
@@ -274,7 +354,7 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "lengthm"
         },
         "overrides": []
       },
@@ -282,7 +362,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "id": 3,
       "options": {
@@ -304,7 +384,7 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"kf_altitude\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"kf_altitude\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "A"
         }
       ],
@@ -363,7 +443,7 @@
               }
             ]
           },
-          "unit": "m/s"
+          "unit": "velocityms"
         },
         "overrides": []
       },
@@ -371,7 +451,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 12
       },
       "id": 4,
       "options": {
@@ -393,12 +473,109 @@
             "type": "influxdb",
             "uid": "influxdb-uid"
           },
-          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"kf_velocity\")",
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"kf_velocity\")\n  |> drop(columns: [\"flight_state\", \"source\"])",
           "refId": "A"
         }
       ],
       "title": "Kalman Filter Velocity Estimate vs. Time",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-uid"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 5,
+      "options": {
+        "basemap": {
+          "config": {},
+          "name": "Basemap",
+          "type": "default"
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
+                  "fixed": "red"
+                },
+                "lineWidth": 2,
+                "opacity": 1,
+                "size": {
+                  "fixed": 5,
+                  "max": 15,
+                  "min": 2
+                }
+              }
+            },
+            "location": {
+              "mode": "coords",
+              "lat": "gps_latitude",
+              "lon": "gps_longitude"
+            },
+            "name": "Flight Path",
+            "tooltip": true,
+            "type": "route"
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "fit",
+          "lat": 0,
+          "lon": 0,
+          "zoom": 1
+        }
+      },
+      "pluginVersion": "11.1.4",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-uid"
+          },
+          "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"gps_latitude\" or r._field == \"gps_longitude\")\n  |> keep(columns: [\"_time\", \"_field\", \"_value\"])\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")",
+          "refId": "A"
+        }
+      ],
+      "title": "GPS Flight Track",
+      "type": "geomap"
     }
   ],
   "refresh": "1s",
