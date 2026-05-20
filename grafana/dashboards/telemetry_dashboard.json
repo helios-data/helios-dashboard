@@ -72,7 +72,7 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "lengthm"
         },
         "overrides": []
       },
@@ -169,7 +169,7 @@
               }
             ]
           },
-          "unit": "m/s2"
+          "unit": "accMS2"
         },
         "overrides": []
       },
@@ -274,7 +274,7 @@
               }
             ]
           },
-          "unit": "m"
+          "unit": "lengthm"
         },
         "overrides": []
       },
@@ -363,7 +363,7 @@
               }
             ]
           },
-          "unit": "m/s"
+          "unit": "velocityms"
         },
         "overrides": []
       },
