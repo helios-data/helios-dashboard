@@ -83,6 +83,13 @@ def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
             .field("baro1_altitude", telemetry.baro1_altitude)
             .field("baro1_nis", telemetry.baro1_nis)
             .field("baro1_faults", telemetry.baro1_faults)
+            # GPS data
+            .field("gps_latitude", telemetry.gps_latitude)
+            .field("gps_longitude", telemetry.gps_longitude)
+            .field("gps_altitude", telemetry.gps_altitude)
+            .field("gps_speed", telemetry.gps_speed)
+            .field("gps_sats", int(telemetry.gps_sats))
+            .field("gps_fix", int(telemetry.gps_fix))
             .time(datetime.utcnow(), WritePrecision.NS)
         )
 
