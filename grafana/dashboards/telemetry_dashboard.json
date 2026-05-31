@@ -58,24 +58,58 @@
           "mappings": [
             {
               "options": {
-                "STANDBY":        {"color": "blue",       "index": 0, "text": "STANDBY"},
-                "ASCENT":         {"color": "green",      "index": 1, "text": "ASCENT"},
-                "MACH_LOCK":      {"color": "yellow",     "index": 2, "text": "MACH LOCK"},
-                "DROGUE_DESCENT": {"color": "orange",     "index": 3, "text": "DROGUE DESCENT"},
-                "MAIN_DESCENT":   {"color": "light-blue", "index": 4, "text": "MAIN DESCENT"},
-                "LANDED":         {"color": "purple",     "index": 5, "text": "LANDED"}
+                "ASCENT": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "ASCENT"
+                },
+                "DROGUE_DESCENT": {
+                  "color": "orange",
+                  "index": 3,
+                  "text": "DROGUE DESCENT"
+                },
+                "LANDED": {
+                  "color": "purple",
+                  "index": 5,
+                  "text": "LANDED"
+                },
+                "MACH_LOCK": {
+                  "color": "yellow",
+                  "index": 2,
+                  "text": "MACH LOCK"
+                },
+                "MAIN_DESCENT": {
+                  "color": "light-blue",
+                  "index": 4,
+                  "text": "MAIN DESCENT"
+                },
+                "STANDBY": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "STANDBY"
+                }
               },
               "type": "value"
             }
           ],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{"color": "green", "value": null}]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": []
       },
-      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 6,
       "options": {
         "alignValue": "center",
@@ -87,17 +121,43 @@
         "mergeValues": true,
         "rowHeight": 0.9,
         "showValue": "always",
-        "tooltip": {"mode": "single", "sort": "none"}
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.1.4",
       "targets": [
         {
-          "datasource": {"type": "influxdb", "uid": "influxdb-uid"},
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-uid"
+          },
           "query": "from(bucket: \"mock_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"telemetry\")\n  |> filter(fn: (r) => r._field == \"state\")\n  |> map(fn: (r) => ({_time: r._time, _value: r.flight_state}))\n  |> group(columns: [])",
           "refId": "A"
         }
       ],
       "title": "Flight State",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "notSubstring",
+                  "options": {
+                    "value": "UNKNOWN"
+                  }
+                },
+                "fieldName": "Value"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
+        }
+      ],
       "type": "state-timeline"
     },
     {
@@ -490,7 +550,13 @@
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {},
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -543,9 +609,9 @@
               }
             },
             "location": {
-              "mode": "coords",
               "lat": "gps_latitude",
-              "lon": "gps_longitude"
+              "lon": "gps_longitude",
+              "mode": "coords"
             },
             "name": "Flight Path",
             "tooltip": true,
@@ -578,7 +644,7 @@
       "type": "geomap"
     }
   ],
-  "refresh": "1s",
+  "refresh": "",
   "schemaVersion": 39,
   "tags": ["telemetry", "flight"],
   "templating": {
