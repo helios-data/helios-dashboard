@@ -10,8 +10,7 @@
 ### Set up
 
 ```sh
-git submodule update --init --recursive
-uv sync
+make deps
 
 # You may need to run this command if ruff is not available in your PATH
 # export PATH="$PWD/.venv/bin:$PATH" 

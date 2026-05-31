@@ -32,6 +32,7 @@ $(PROTO_BUILD_DIR):
 	mkdir -p $(PROTO_BUILD_DIR)
 
 deps:
+	git submodule update --init --recursive
 	uv run sync
 
 run:
