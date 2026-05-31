@@ -1,10 +1,25 @@
 {
-  "ports": [],
+  "ports": [
+    {
+      "source": "8086",
+      "target": "8086"
+    },
+    {
+      "source": "3000",
+      "target": "3000"
+    }
+  ],
+  "devices": [],
   "volumes": [
     {
       "type": "folder",
       "name": "/root/.influxdbv2",
       "source": "/home/rocket/helios-launcher/src/tmp/influx2"
     }
+  ],
+  "flags": [],
+  "websites": [
+    "http://localhost:3000",
+    "http://localhost:8086"
   ]
 }
