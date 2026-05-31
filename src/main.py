@@ -166,7 +166,7 @@ async def main() -> None:
                     # Write to InfluxDB using Point API
                     write_telemetry_to_influxdb(write_api, telemetry)
                     
-                    if VERBOSE:
+                    if not VERBOSE:
                         logger.info(
                             f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
                             f"state={flight_state_name(telemetry.state)}, "
