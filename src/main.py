@@ -120,6 +120,7 @@ async def main() -> None:
 
     if STANDALONE:
         try:
+            logger.info("Running in standalone mode")
             threading.Event().wait()
         except KeyboardInterrupt:
             logger.info("Shutting down")
