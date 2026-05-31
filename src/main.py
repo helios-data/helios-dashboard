@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+import threading # signal is not portable to windows
 from datetime import datetime
 
 from helios import HeliosClient
@@ -18,6 +19,8 @@ INFLUX_URL = os.getenv("INFLUX_URL", "http://127.0.0.1:8086")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "my-super-token")
 INFLUX_ORG = os.getenv("INFLUX_ORG", "rocket")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "mock_data")
+VERBOSE: bool = os.getenv("VERBOSE", "") != ""
+STANDALONE: bool = os.getenv("STANDALONE", "") != ""
 
 
 def validate_influx_config() -> None:
@@ -94,7 +97,8 @@ def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
         )
 
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
-        logger.debug(f"Telemetry point written: counter={telemetry.counter}")
+        if VERBOSE:
+            logger.debug(f"Telemetry point written: counter={telemetry.counter}")
 
     except Exception as e:
         logger.error(f"Failed to write telemetry to InfluxDB: {e}", exc_info=True)
@@ -113,7 +117,17 @@ async def main() -> None:
     # Initialize InfluxDB client
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
-    
+
+    if STANDALONE:
+        try:
+            logger.info("Running in standalone mode")
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            logger.info("Shutting down")
+        finally:
+            influx_client.close()
+            sys.exit(0)
+
     # Initialize Helios client
     helios_client = HeliosClient(
         core_address="Helios",
@@ -138,10 +152,11 @@ async def main() -> None:
                     telemetry = TelemetryPacket().parse(event.data)
 
                     packet_dict = telemetry.to_dict()
-                    print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
-                    for field, value in packet_dict.items():
-                        print(f"{field}: {value} ({type(value).__name__})")
-                    print("-------------------------------------------\n")
+                    if VERBOSE:
+                        print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
+                        for field, value in packet_dict.items():
+                            print(f"{field}: {value} ({type(value).__name__})")
+                        print("-------------------------------------------\n")
 
                     # If parsing goes sideways and creates a list, skip this packet
                     if isinstance(telemetry.gyro_y, list):
@@ -151,12 +166,13 @@ async def main() -> None:
                     # Write to InfluxDB using Point API
                     write_telemetry_to_influxdb(write_api, telemetry)
                     
-                    logger.info(
-                        f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
-                        f"state={flight_state_name(telemetry.state)}, "
-                        f"altitude={telemetry.kf_altitude:.2f}m, "
-                        f"velocity={telemetry.kf_velocity:.2f}m/s"
-                    )
+                    if not VERBOSE:
+                        logger.info(
+                            f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
+                            f"state={flight_state_name(telemetry.state)}, "
+                            f"altitude={telemetry.kf_altitude:.2f}m, "
+                            f"velocity={telemetry.kf_velocity:.2f}m/s"
+                        )
                     
                 except EOFError as e:
                     logger.error(f"Skipping malformed packet: {e}")
