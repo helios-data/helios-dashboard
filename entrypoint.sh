@@ -74,8 +74,8 @@ grafana server \
 echo "Waiting for InfluxDB to be fully ready for authenticated writes..."
 sleep 10
 
-echo "Starting Python script..."
-# Using the venv python directly
-/app/.venv/bin/python /app/src/main.py
+echo "Starting Python scripts..."
+/app/.venv/bin/python /app/src/main.py &
+/app/.venv/bin/python /app/src/aprs_decoder.py &
 
 wait
