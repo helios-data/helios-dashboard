@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 _POS_RE = re.compile(
     r"(\d{4}\.\d+)([NS])"   # latitude DDMM.mm + N/S
-    r"[/\\]."                # symbol table + symbol
+    r"[/\\]"                # symbol table identifier
     r"(\d{5}\.\d+)([EW])"   # longitude DDDMM.mm + E/W
 )
 _ALT_RE = re.compile(r"/A=(\d+)")  # altitude in feet
