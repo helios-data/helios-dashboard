@@ -93,7 +93,7 @@ async def run(write_api: WriteApi, bucket: str, org: str, verbose: bool = False)
         logger.info("APRS decoder connected to Helios core")
 
         async with helios_client.subscribe_event(
-            address="Helios.APRS.Receiver",
+            address="Helios.Services.TeleGPS",
             event_name="aprs",
         ) as events:
             async for event in events:
