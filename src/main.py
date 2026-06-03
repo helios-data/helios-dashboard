@@ -6,10 +6,10 @@ import threading # signal is not portable to windows
 from datetime import datetime, timezone
 
 from helios import HeliosClient
+from helios.generated.helios.transport import AprsPacket
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS, WriteApi
 from generated import TelemetryPacket, FlightState
-import aprs_decoder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -102,7 +102,96 @@ def write_telemetry_to_influxdb(write_api: WriteApi, telemetry: TelemetryPacket)
         logger.error(f"Failed to write telemetry to InfluxDB: {e}", exc_info=True)
 
 
-async def srad_task(write_api: WriteApi) -> None:
+def write_aprs_to_influxdb(write_api: WriteApi, packet: AprsPacket) -> None:
+    try:
+        pos = packet.position
+        assert pos is not None
+        point = (
+            Point("aprs")
+            .tag("source", "APRS")
+            .tag("callsign", packet.source)
+            .field("gps_latitude", pos.latitude)
+            .field("gps_longitude", pos.longitude)
+            .time(datetime.now(timezone.utc), WritePrecision.NS)
+        )
+        if pos.altitude_ft is not None:
+            point = point.field("gps_altitude", pos.altitude_ft * 0.3048)  # feet → metres
+
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
+        if VERBOSE:
+            logger.debug(
+                "APRS point written: callsign=%s lat=%.5f lon=%.5f",
+                packet.source,
+                pos.latitude,
+                pos.longitude,
+            )
+
+    except Exception as e:
+        logger.error(f"Failed to write APRS to InfluxDB: {e}", exc_info=True)
+
+
+async def process_telemetry(events, write_api: WriteApi) -> None:
+    async for event in events:
+        if not event.data or len(event.data) < 15:
+            continue
+        try:
+            telemetry = TelemetryPacket().parse(event.data)
+
+            packet_dict = telemetry.to_dict()
+            if VERBOSE:
+                print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
+                for field, value in packet_dict.items():
+                    print(f"{field}: {value} ({type(value).__name__})")
+                print("-------------------------------------------\n")
+
+            if isinstance(telemetry.gyro_y, list):
+                logger.warning(f"Corrupted packet (Field is list): counter={getattr(telemetry, 'counter', 'unknown')}")
+                continue
+
+            write_telemetry_to_influxdb(write_api, telemetry)
+
+            if not VERBOSE:
+                logger.info(
+                    f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
+                    f"state={flight_state_name(telemetry.state)}, "
+                    f"altitude={telemetry.kf_altitude:.2f}m, "
+                    f"velocity={telemetry.kf_velocity:.2f}m/s"
+                )
+
+        except EOFError as e:
+            logger.error(f"Skipping malformed packet: {e}")
+        except Exception as e:
+            logger.error(f"Error processing telemetry event: {e}", exc_info=True)
+
+
+async def process_aprs(events, write_api: WriteApi) -> None:
+    async for event in events:
+        if not event.data:
+            continue
+        try:
+            packet = AprsPacket().parse(event.data)
+
+            pos = packet.position
+            if pos is None:
+                logger.warning("No position in APRS packet from %s", packet.source)
+                continue
+
+            write_aprs_to_influxdb(write_api, packet)
+
+            if not VERBOSE:
+                logger.info(
+                    "[%s] → APRS: callsign=%s lat=%.5f lon=%.5f",
+                    datetime.now(),
+                    packet.source,
+                    pos.latitude,
+                    pos.longitude,
+                )
+
+        except Exception as e:
+            logger.error("Error processing APRS event: %s", e, exc_info=True)
+
+
+async def dashboard_task(write_api: WriteApi) -> None:
     helios_client = HeliosClient(
         core_address="Helios",
         core_port=5000,
@@ -111,46 +200,23 @@ async def srad_task(write_api: WriteApi) -> None:
 
     try:
         await helios_client.connect()
-        logger.info("Connected to Helios core (SRAD)")
+        logger.info("Connected to Helios core")
 
         async with helios_client.subscribe_event(
             address="Helios.FALCON.Telemetry",
             event_name="telemetry",
-        ) as events:
-            async for event in events:
-                if not event.data or len(event.data) < 15: # Increased threshold
-                    continue
-                try:
-                    telemetry = TelemetryPacket().parse(event.data)
-
-                    packet_dict = telemetry.to_dict()
-                    if VERBOSE:
-                        print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
-                        for field, value in packet_dict.items():
-                            print(f"{field}: {value} ({type(value).__name__})")
-                        print("-------------------------------------------\n")
-
-                    if isinstance(telemetry.gyro_y, list):
-                        logger.warning(f"Corrupted packet (Field is list): counter={getattr(telemetry, 'counter', 'unknown')}")
-                        continue
-
-                    write_telemetry_to_influxdb(write_api, telemetry)
-
-                    if not VERBOSE:
-                        logger.info(
-                            f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
-                            f"state={flight_state_name(telemetry.state)}, "
-                            f"altitude={telemetry.kf_altitude:.2f}m, "
-                            f"velocity={telemetry.kf_velocity:.2f}m/s"
-                        )
-
-                except EOFError as e:
-                    logger.error(f"Skipping malformed packet: {e}")
-                except Exception as e:
-                    logger.error(f"Error processing event: {e}", exc_info=True)
+        ) as telemetry_events:
+            async with helios_client.subscribe_event(
+                address="Helios.Services.TeleGPS",
+                event_name="aprs",
+            ) as aprs_events:
+                await asyncio.gather(
+                    process_telemetry(telemetry_events, write_api),
+                    process_aprs(aprs_events, write_api),
+                )
 
     except Exception as e:
-        logger.error(f"Fatal error in SRAD task: {e}", exc_info=True)
+        logger.error(f"Fatal error in dashboard task: {e}", exc_info=True)
     finally:
         await helios_client.disconnect()
 
@@ -179,10 +245,7 @@ async def main() -> None:
             sys.exit(0)
 
     try:
-        await asyncio.gather(
-            srad_task(write_api),
-            aprs_decoder.run(write_api, INFLUX_BUCKET, INFLUX_ORG, VERBOSE),
-        )
+        await dashboard_task(write_api)
     finally:
         influx_client.close()
 
