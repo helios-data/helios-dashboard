@@ -3,12 +3,13 @@ import logging
 import os
 import sys
 import threading # signal is not portable to windows
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helios import HeliosClient
 from influxdb_client import InfluxDBClient, Point, WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write_api import SYNCHRONOUS, WriteApi
 from generated import TelemetryPacket, FlightState
+import aprs_decoder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +37,6 @@ def validate_influx_config() -> None:
 
 
 def flight_state_name(state: int) -> str:
-    """Convert FlightState enum to string."""
     state_names = {
         FlightState.STANDBY: "STANDBY",
         FlightState.ASCENT: "ASCENT",
@@ -48,10 +48,8 @@ def flight_state_name(state: int) -> str:
     return state_names.get(state, f"UNKNOWN_{state}")
 
 
-def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
-    """Write TelemetryPacket data to InfluxDB using Point API."""
+def write_telemetry_to_influxdb(write_api: WriteApi, telemetry: TelemetryPacket) -> None:
     try:
-        # Create Point object with telemetry measurement
         point = (
             Point("telemetry")
             .tag("flight_state", flight_state_name(telemetry.state))
@@ -93,7 +91,7 @@ def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
             .field("gps_speed", telemetry.gps_speed)
             .field("gps_sats", int(telemetry.gps_sats))
             .field("gps_fix", int(telemetry.gps_fix))
-            .time(datetime.utcnow(), WritePrecision.NS)
+            .time(datetime.now(timezone.utc), WritePrecision.NS)
         )
 
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
@@ -102,6 +100,59 @@ def write_telemetry_to_influxdb(write_api, telemetry: TelemetryPacket) -> None:
 
     except Exception as e:
         logger.error(f"Failed to write telemetry to InfluxDB: {e}", exc_info=True)
+
+
+async def srad_task(write_api: WriteApi) -> None:
+    helios_client = HeliosClient(
+        core_address="Helios",
+        core_port=5000,
+        node_uri="Helios.FALCON.Dashboard",
+    )
+
+    try:
+        await helios_client.connect()
+        logger.info("Connected to Helios core (SRAD)")
+
+        async with helios_client.subscribe_event(
+            address="Helios.FALCON.Telemetry",
+            event_name="telemetry",
+        ) as events:
+            async for event in events:
+                if not event.data or len(event.data) < 15: # Increased threshold
+                    continue
+                try:
+                    telemetry = TelemetryPacket().parse(event.data)
+
+                    packet_dict = telemetry.to_dict()
+                    if VERBOSE:
+                        print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
+                        for field, value in packet_dict.items():
+                            print(f"{field}: {value} ({type(value).__name__})")
+                        print("-------------------------------------------\n")
+
+                    if isinstance(telemetry.gyro_y, list):
+                        logger.warning(f"Corrupted packet (Field is list): counter={getattr(telemetry, 'counter', 'unknown')}")
+                        continue
+
+                    write_telemetry_to_influxdb(write_api, telemetry)
+
+                    if not VERBOSE:
+                        logger.info(
+                            f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
+                            f"state={flight_state_name(telemetry.state)}, "
+                            f"altitude={telemetry.kf_altitude:.2f}m, "
+                            f"velocity={telemetry.kf_velocity:.2f}m/s"
+                        )
+
+                except EOFError as e:
+                    logger.error(f"Skipping malformed packet: {e}")
+                except Exception as e:
+                    logger.error(f"Error processing event: {e}", exc_info=True)
+
+    except Exception as e:
+        logger.error(f"Fatal error in SRAD task: {e}", exc_info=True)
+    finally:
+        await helios_client.disconnect()
 
 
 async def main() -> None:
@@ -114,7 +165,6 @@ async def main() -> None:
         INFLUX_BUCKET,
     )
 
-    # Initialize InfluxDB client
     influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
     write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
@@ -128,62 +178,13 @@ async def main() -> None:
             influx_client.close()
             sys.exit(0)
 
-    # Initialize Helios client
-    helios_client = HeliosClient(
-        core_address="Helios",
-        core_port=5000,
-        node_uri="Helios.FALCON.Dashboard",
-    )
-
     try:
-        await helios_client.connect()
-        logger.info("Connected to Helios core")
-
-        async with helios_client.subscribe_event(
-            address="Helios.FALCON.Telemetry",
-            event_name="telemetry",
-        ) as events:
-            async for event in events:
-                if not event.data or len(event.data) < 15: # Increased threshold
-                    continue
-                try:
-                    
-                    # Parse incoming data as TelemetryPacket from protobuf schema
-                    telemetry = TelemetryPacket().parse(event.data)
-
-                    packet_dict = telemetry.to_dict()
-                    if VERBOSE:
-                        print(f"\n--- FULL PACKET [Counter: {telemetry.counter}] ---")
-                        for field, value in packet_dict.items():
-                            print(f"{field}: {value} ({type(value).__name__})")
-                        print("-------------------------------------------\n")
-
-                    # If parsing goes sideways and creates a list, skip this packet
-                    if isinstance(telemetry.gyro_y, list):
-                        logger.warning(f"Corrupted packet (Field is list): counter={getattr(telemetry, 'counter', 'unknown')}")
-                        continue
-                    
-                    # Write to InfluxDB using Point API
-                    write_telemetry_to_influxdb(write_api, telemetry)
-                    
-                    if not VERBOSE:
-                        logger.info(
-                            f"[{datetime.now()}] → Telemetry: counter={telemetry.counter}, "
-                            f"state={flight_state_name(telemetry.state)}, "
-                            f"altitude={telemetry.kf_altitude:.2f}m, "
-                            f"velocity={telemetry.kf_velocity:.2f}m/s"
-                        )
-                    
-                except EOFError as e:
-                    logger.error(f"Skipping malformed packet: {e}")
-                except Exception as e:
-                    logger.error(f"Error processing event: {e}", exc_info=True)
-
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        await asyncio.gather(
+            srad_task(write_api),
+            aprs_decoder.run(write_api, INFLUX_BUCKET, INFLUX_ORG, VERBOSE),
+        )
     finally:
         influx_client.close()
-        await helios_client.disconnect()
 
 
 if __name__ == "__main__":

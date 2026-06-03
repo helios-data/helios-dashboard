@@ -75,7 +75,6 @@ echo "Waiting for InfluxDB to be fully ready for authenticated writes..."
 sleep 10
 
 echo "Starting Python script..."
-# Using the venv python directly
 /app/.venv/bin/python /app/src/main.py
 
 wait
