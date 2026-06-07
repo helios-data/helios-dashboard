@@ -621,7 +621,7 @@
             },
             "name": "SRAD",
             "tooltip": true,
-            "type": "route"
+            "type": "markers"
           },
           {
             "config": {
@@ -652,7 +652,7 @@
             },
             "name": "APRS",
             "tooltip": true,
-            "type": "route"
+            "type": "markers"
           }
         ],
         "tooltip": {
