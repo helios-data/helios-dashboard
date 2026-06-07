@@ -6,4 +6,5 @@ docker run \
     -v ~/Desktop/Projects/rocket/helios-launcher/src/tmp/influx2:/root/.influxdbv2 \
     -e VERBOSE=1 \
     -e STANDALONE=1 \
+    -d \
     dashboard
