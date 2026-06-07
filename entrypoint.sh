@@ -60,6 +60,10 @@ datasources:
     isDefault: true
 EOF
 
+export GF_AUTH_ANONYMOUS_ENABLED=true
+export GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+export GF_AUTH_DISABLE_LOGIN_FORM=true
+
 echo "Starting Grafana..."
 grafana server \
   --homepath=/usr/share/grafana \
