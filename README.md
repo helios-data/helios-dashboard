@@ -32,6 +32,10 @@ docker run -p 3000:3000 -p 8086:8086 -v /your/path/here:/root/.influxdbv2 dashbo
 docker run -p 3000:3000 -p 8086:8086 -e VERBOSE=1 -e STANDALONE=1 dashboard
 ```
 
+### Notes
+
+- If you have modified any part of the code including the dashboard json, you should rebuild and rerun the container to see the changes in the dashboard
+
 ### Access
 
 - Grafana is on port 3000

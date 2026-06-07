@@ -1,8 +1,9 @@
-docker build --no-cache -t influx-grafana-python .
+docker build -t dashboard .
 
 docker run \
     -p 3000:3000 \
     -p 8086:8086 \
-    -v influxdb_data:/root/.influxdbv2 \
-    -v grafana_data:/var/lib/grafana \
-    influx-grafana-python
+    -v ~/Desktop/Projects/rocket/helios-launcher/src/tmp/influx2:/root/.influxdbv2 \
+    -e VERBOSE=1 \
+    -e STANDALONE=1 \
+    dashboard
