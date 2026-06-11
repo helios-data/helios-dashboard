@@ -148,16 +148,6 @@ async def process_telemetry(events, write_api: WriteApi) -> None:
                 logger.warning(f"Corrupted packet (List field): counter={getattr(telemetry, 'counter', 'unknown')}")
                 continue
 
-            lat, lon = float(telemetry.gps_latitude), float(telemetry.gps_longitude)
-            if lat == int(lat) or lon == int(lon):
-                logger.warning(
-                    "Ignoring telemetry packet counter=%s: integer lat/lon (lat=%.5f lon=%.5f)",
-                    telemetry.counter,
-                    lat,
-                    lon,
-                )
-                continue
-
             write_telemetry_to_influxdb(write_api, telemetry)
 
             if not VERBOSE:
@@ -184,15 +174,6 @@ async def process_aprs(events, write_api: WriteApi) -> None:
             pos = packet.position
             if pos is None:
                 logger.warning("No position in APRS packet from %s", packet.source)
-                continue
-
-            if pos.latitude == int(pos.latitude) or pos.longitude == int(pos.longitude):
-                logger.warning(
-                    "Ignoring APRS packet from %s: integer lat/lon (lat=%.5f lon=%.5f)",
-                    packet.source,
-                    pos.latitude,
-                    pos.longitude,
-                )
                 continue
 
             write_aprs_to_influxdb(write_api, packet)
