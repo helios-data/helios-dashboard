@@ -116,6 +116,8 @@ def write_aprs_to_influxdb(write_api: WriteApi, packet: AprsPacket) -> None:
         )
         if pos.altitude_ft is not None:
             point = point.field("gps_altitude", pos.altitude_ft * 0.3048)  # feet → metres
+        if pos.speed_knots is not None:
+            point = point.field("gps_speed", pos.speed_knots * 0.514444)  # knots → m/s
 
         write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
         if VERBOSE:
