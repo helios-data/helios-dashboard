@@ -53,7 +53,7 @@ def write_telemetry_to_influxdb(write_api: WriteApi, telemetry: TelemetryPacket)
         point = (
             Point("telemetry")
             .tag("flight_state", flight_state_name(telemetry.state))
-            .tag("source", "Helios.FALCON.Telemetry")
+            .tag("source", "Helios.FALCON.SRAD_Telemetry")
             # Packet metadata
             .field("counter", telemetry.counter)
             .field("timestamp_ms", telemetry.timestamp_ms)
@@ -205,11 +205,11 @@ async def dashboard_task(write_api: WriteApi) -> None:
         logger.info("Connected to Helios core")
 
         async with helios_client.subscribe_event(
-            address="Helios.FALCON.Telemetry",
+            address="Helios.FALCON.SRAD_Telemetry",
             event_name="telemetry",
         ) as telemetry_events:
             async with helios_client.subscribe_event(
-                address="Helios.Services.TeleGPS",
+                address="Helios.FALCON.APRS_Telemetry",
                 event_name="aprs",
             ) as aprs_events:
                 await asyncio.gather(
